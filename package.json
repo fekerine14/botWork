@@ -1,7 +1,11 @@
 {
-  "name": "ecom-bot",
+  "name": "dz-ecom-pro-bot",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": { "start": "node index.js" },
-  "dependencies": { "telegraf": "^4.0.0" }
+  "dependencies": {
+    "telegraf": "^4.16.3",
+    "dotenv": "^16.4.5",
+    "axios": "^1.7.2"
+  }
 }
