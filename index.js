@@ -1,6 +1,5 @@
 require('dotenv').config();
 const { Telegraf } = require('telegraf');
-const axios = require('axios');
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = process.env.ADMIN_ID;
@@ -9,20 +8,20 @@ const ADMIN_ID = process.env.ADMIN_ID;
 const TEMPLATES = {
   temp1: {
     name: "قالب الأناقة (ملابس)",
-    image: "https://i.imgur.com/AbCdEfG.png",
-    link: "https://ecom-template-1.vercel.app",
+    image: "https://images.unsplash.com/photo-1441986300917-64672809604f?w=800",
+    link: "https://ecom-fashion.vercel.app",
     price: 0
   },
   temp2: {
     name: "قالب التكنولوجيا (إلكترونيات)",
-    image: "https://i.imgur.com/XyZ1234.png",
-    link: "https://ecom-template-2.vercel.app",
+    image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800",
+    link: "https://ecom-tech.vercel.app",
     price: 0
   },
   temp3: {
     name: "قالب السوبر ماركت (غذائي)",
-    image: "https://i.imgur.com/987LkMn.png",
-    link: "https://ecom-template-3.vercel.app",
+    image: "https://images.unsplash.com/photo-1542838132-92c328c728e9?w=800",
+    link: "https://ecom-market.vercel.app",
     price: 0
   }
 };
@@ -42,9 +41,18 @@ async function notifyAdmin(msg) {
   try {
     await bot.telegram.sendMessage(ADMIN_ID, msg, { parse_mode: 'Markdown' });
   } catch (err) {
-    console.log('Admin not reachable:', err.message);
+    console.log('Admin not reachable (send "hi" once):', err.message);
   }
 }
+
+// تجاهل الأخطاء القديمة
+bot.catch((err, ctx) => {
+  if (err.description?.includes('query is too old') || err.description?.includes('timeout')) {
+    console.log('Ignored: old or expired callback');
+    return;
+  }
+  console.error('Bot error:', err);
+});
 
 // بداية البوت
 bot.start((ctx) => {
@@ -65,8 +73,14 @@ bot.start((ctx) => {
 
 // معالجة الاختيارات
 bot.on('callback_query', async (ctx) => {
+  try {
+    await ctx.answerCbQuery();
+  } catch (err) {
+    console.log('Ignored expired callback:', err.message);
+    return;
+  }
+
   const data = ctx.callbackQuery.data;
-  await ctx.answerCbQuery();
 
   if (['clothes', 'electronics', 'food', 'other'].includes(data)) {
     user.type = data;
@@ -113,7 +127,6 @@ bot.on('callback_query', async (ctx) => {
   if (Object.keys(TEMPLATES).includes(data)) {
     user.template = TEMPLATES[data];
     
-    // عرض الصورة + الرابط
     await ctx.replyWithPhoto(
       { url: user.template.image },
       { 
@@ -127,10 +140,8 @@ bot.on('callback_query', async (ctx) => {
       if (!user.phone && msgCtx.message.text.match(/^\d{10}$/)) {
         user.phone = msgCtx.message.text;
 
-        // رسالة للعميل
         await msgCtx.replyWithMarkdown(`*تم الطلب!*\nالسعر: *${user.price.toLocaleString()} دج*\nسنتصل بك خلال ساعة 📞`);
 
-        // رسالة للأدمن
         const adminMsg = `
 *طلب جديد!*
 
@@ -156,7 +167,7 @@ bot.on('callback_query', async (ctx) => {
 
 // إشعار عند بدء التشغيل
 setTimeout(() => {
-  notifyAdmin('🟢 *البوت شغال الآن!* جاهز لاستقبال الطلبات.');
+  notifyAdmin('🟢 *البوت الاحترافي شغال الآن!* جاهز لاستقبال الطلبات.');
 }, 5000);
 
 bot.launch();
