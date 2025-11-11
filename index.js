@@ -1,7 +1,7 @@
 const { Telegraf } = require('telegraf');
-const bot = new Telegraf('8276814553:AAGQVCEfipQIZrUz5Lg22UwgJZVOfdYx8nI'); // غيّر هذا بتوكنك
+const bot = new Telegraf(process.env.BOT_TOKEN);
+const ADMIN_ID = process.env.ADMIN_ID;
 
-const ADMIN_ID = 123456789; // غيّر هذا بـ ID تيليجرامك
 let user = {};
 
 bot.start((ctx) => {
