@@ -1,5 +1,5 @@
 const { Telegraf } = require('telegraf');
-const bot = new Telegraf('7498263491:AAH2k3d9i3z8fXj5KpLmNqRtYvBcDeFgHiJ'); // غيّر هذا بتوكنك
+const bot = new Telegraf('8276814553:AAGQVCEfipQIZrUz5Lg22UwgJZVOfdYx8nI'); // غيّر هذا بتوكنك
 
 const ADMIN_ID = 123456789; // غيّر هذا بـ ID تيليجرامك
 let user = {};
