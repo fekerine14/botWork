@@ -1,12 +1,57 @@
+require('dotenv').config();
 const { Telegraf } = require('telegraf');
+const axios = require('axios');
+
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const ADMIN_ID = process.env.ADMIN_ID;
 
+// قوالب جاهزة (Shadcn UI) مع صور + روابط
+const TEMPLATES = {
+  temp1: {
+    name: "قالب الأناقة (ملابس)",
+    image: "https://i.imgur.com/AbCdEfG.png",
+    link: "https://ecom-template-1.vercel.app",
+    price: 0
+  },
+  temp2: {
+    name: "قالب التكنولوجيا (إلكترونيات)",
+    image: "https://i.imgur.com/XyZ1234.png",
+    link: "https://ecom-template-2.vercel.app",
+    price: 0
+  },
+  temp3: {
+    name: "قالب السوبر ماركت (غذائي)",
+    image: "https://i.imgur.com/987LkMn.png",
+    link: "https://ecom-template-3.vercel.app",
+    price: 0
+  }
+};
+
+// الأسعار
+const PRICES = {
+  '5': { name: '5 منتجات', price: 3000 },
+  '20': { name: '20 منتج', price: 15000 },
+  '50': { name: '50+ منتج', price: 40000 },
+  '80': { name: 'كل شيء + تطبيق', price: 80000 }
+};
+
 let user = {};
 
+// إشعار آمن للأدمن
+async function notifyAdmin(msg) {
+  try {
+    await bot.telegram.sendMessage(ADMIN_ID, msg, { parse_mode: 'Markdown' });
+  } catch (err) {
+    console.log('Admin not reachable:', err.message);
+  }
+}
+
+// بداية البوت
 bot.start((ctx) => {
-  user = { id: ctx.from.id, name: ctx.from.first_name };
-  ctx.reply('مرحبا! 😊 أي نوع متجر تبغاه؟', {
+  user = { id: ctx.from.id, name: ctx.from.first_name, username: ctx.from.username || 'غير معروف' };
+  
+  ctx.replyWithMarkdown(`*مرحبا ${user.name}!* 😊  
+أي نوع متجر تبغاه؟`, {
     reply_markup: {
       inline_keyboard: [
         [{ text: '👗 ملابس', callback_data: 'clothes' }],
@@ -18,29 +63,32 @@ bot.start((ctx) => {
   });
 });
 
+// معالجة الاختيارات
 bot.on('callback_query', async (ctx) => {
   const data = ctx.callbackQuery.data;
-  
+  await ctx.answerCbQuery();
+
   if (['clothes', 'electronics', 'food', 'other'].includes(data)) {
     user.type = data;
-    ctx.reply('كم منتج تبغى؟', {
+    const typeText = { clothes: 'ملابس', electronics: 'إلكترونيات', food: 'مواد غذائية', other: 'أخرى' }[data];
+    
+    ctx.replyWithMarkdown(`*نوع المتجر:* ${typeText}\n\nكم منتج تبغى؟`, {
       reply_markup: {
         inline_keyboard: [
-          [{ text: '5 (3,000 دج)', callback_data: '5' }],
-          [{ text: '20 (15,000 دج)', callback_data: '20' }],
-          [{ text: '50+ (40,000 دج)', callback_data: '50' }],
-          [{ text: 'كل شيء + تطبيق (80,000 دج)', callback_data: '80' }]
+          [{ text: `5 (${PRICES['5'].price.toLocaleString()} دج)`, callback_data: '5' }],
+          [{ text: `20 (${PRICES['20'].price.toLocaleString()} دج)`, callback_data: '20' }],
+          [{ text: `50+ (${PRICES['50'].price.toLocaleString()} دج)`, callback_data: '50' }],
+          [{ text: `كل شيء + تطبيق (${PRICES['80'].price.toLocaleString()} دج)`, callback_data: '80' }]
         ]
       }
     });
   }
 
-  if (['5', '20', '50', '80'].includes(data)) {
-    user.products = data;
-    const prices = { '5': 3000, '20': 15000, '50': 40000, '80': 80000 };
-    user.price = prices[data];
+  if (Object.keys(PRICES).includes(data)) {
+    user.package = PRICES[data];
+    user.price = user.package.price;
 
-    ctx.reply('دفع عند الاستلام؟', {
+    ctx.replyWithMarkdown(`*الباقة:* ${user.package.name} (${user.price.toLocaleString()} دج)\n\nدفع عند الاستلام؟`, {
       reply_markup: {
         inline_keyboard: [
           [{ text: '✅ نعم', callback_data: 'cod_yes' }],
@@ -53,51 +101,63 @@ bot.on('callback_query', async (ctx) => {
   if (data === 'cod_yes' || data === 'cod_no') {
     user.cod = data === 'cod_yes' ? 'نعم' : 'لا';
 
-    // عرض القوالب (يمكنك إضافة صور لاحقًا)
-    ctx.reply(`السعر: *${user.price.toLocaleString()} دج*\nاختر قالبك:`, {
-      parse_mode: 'Markdown',
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: 'قالب 1', callback_data: 'temp1' }],
-          [{ text: 'قالب 2', callback_data: 'temp2' }],
-          [{ text: 'قالب 3', callback_data: 'temp3' }]
-        ]
-      }
+    const keyboard = Object.entries(TEMPLATES).map(([key, temp]) => 
+      [{ text: temp.name, callback_data: key }]
+    );
+
+    ctx.replyWithMarkdown(`*السعر النهائي:* ${user.price.toLocaleString()} دج\n\nاختر القالب اللي يعجبك:`, {
+      reply_markup: { inline_keyboard: keyboard }
     });
   }
 
-  if (['temp1', 'temp2', 'temp3'].includes(data)) {
-    user.template = data;
+  if (Object.keys(TEMPLATES).includes(data)) {
+    user.template = TEMPLATES[data];
+    
+    // عرض الصورة + الرابط
+    await ctx.replyWithPhoto(
+      { url: user.template.image },
+      { 
+        caption: `*القالب:* ${user.template.name}\n🔗 [شاهد القالب مباشرة](${user.template.link})\n\nأرسل رقم واتسابك (مثل: 0550123456)`,
+        parse_mode: 'Markdown'
+      }
+    );
 
-    // طلب الرقم
-    ctx.reply('أرسل لي رقم واتسابك (مثل: 0550123456)');
+    // انتظار الرقم
+    bot.on('text', async (msgCtx) => {
+      if (!user.phone && msgCtx.message.text.match(/^\d{10}$/)) {
+        user.phone = msgCtx.message.text;
 
-    bot.on('text', async (ctx) => {
-      if (!user.phone && ctx.message.text.match(/^\d{10}$/)) {
-        user.phone = ctx.message.text;
+        // رسالة للعميل
+        await msgCtx.replyWithMarkdown(`*تم الطلب!*\nالسعر: *${user.price.toLocaleString()} دج*\nسنتصل بك خلال ساعة 📞`);
 
-        // إرسال للعميل
-        ctx.reply(`تم! ✅\nالسعر: *${user.price.toLocaleString()} دج*\nسنتصل بك خلال ساعة.`);
+        // رسالة للأدمن
+        const adminMsg = `
+*طلب جديد!*
 
-        // إرسال للأدمن
-        const msg = `
-🔔 طلب جديد!
-العميل: @${ctx.from.username || 'غير معروف'}
+العميل: @${user.username}
 الاسم: ${user.name}
-نوع: ${user.type}
-منتجات: ${user.products}
-السعر: ${user.price.toLocaleString()} دج
-COD: ${user.cod}
-القالب: ${user.template}
-الرقم: ${user.phone}
+نوع المتجر: ${user.type}
+الباقة: ${user.package.name}
+السعر: *${user.price.toLocaleString()} دج*
+دفع عند الاستلام: ${user.cod}
+القالب: ${user.template.name}
+رقم الواتساب: ${user.phone}
+رابط القالب: ${user.template.link}
         `.trim();
 
-        await bot.telegram.sendMessage(ADMIN_ID, msg);
+        await notifyAdmin(adminMsg);
         user = {};
+      } else if (!user.phone) {
+        msgCtx.reply('⚠️ أرسل رقم واتساب صحيح (10 أرقام)');
       }
     });
   }
 });
 
+// إشعار عند بدء التشغيل
+setTimeout(() => {
+  notifyAdmin('🟢 *البوت شغال الآن!* جاهز لاستقبال الطلبات.');
+}, 5000);
+
 bot.launch();
-console.log('البوت شغال! 🚀');
+console.log('البوت الاحترافي شغال! 🚀');
